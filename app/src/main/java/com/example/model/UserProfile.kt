@@ -1,11 +1,11 @@
 package com.example.model
 
 data class UserProfile(
-    val id: String = "user_adventurer",
-    val name: String = "Trail Pioneer",
-    val email: String = "trekker@arolock.app",
+    val id: String = "user_default",
+    val name: String = "",
+    val email: String = "",
     val photoUri: String? = null,
-    val authProvider: String = "Guest", // "Google", "Email", "Guest"
+    val authProvider: String = "Email", // "Email", "Google"
     val isLoggedIn: Boolean = false,
     val age: Int = 28,
     val weightKg: Float = 70f,

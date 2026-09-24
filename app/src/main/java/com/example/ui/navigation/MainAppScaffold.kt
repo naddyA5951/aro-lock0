@@ -296,7 +296,7 @@ fun MainAppScaffold(
                 Screen.SPLASH -> {
                     SplashScreen(
                         onTimeout = {
-                            if (userProfile.isLoggedIn) {
+                            if (userProfile.isLoggedIn && userProfile.email.isNotBlank()) {
                                 navigateTo(Screen.HOME, clearTop = true)
                             } else {
                                 navigateTo(Screen.LOGIN, clearTop = true)

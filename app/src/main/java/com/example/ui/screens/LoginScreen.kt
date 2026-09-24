@@ -128,30 +128,25 @@ fun LoginScreen(
     }
 
     fun handleEmailAuth() {
-        if (email.isBlank() || !email.contains("@")) {
-            Toast.makeText(context, "Please enter a valid email address", Toast.LENGTH_SHORT).show()
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.isBlank() || !trimmedEmail.contains("@") || !trimmedEmail.contains(".")) {
+            Toast.makeText(context, "Please enter a valid email address (e.g. user@example.com)", Toast.LENGTH_SHORT).show()
             return
         }
-        if (password.length < 6) {
-            Toast.makeText(context, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+        if (password.length < 4) {
+            Toast.makeText(context, "Password must be at least 4 characters", Toast.LENGTH_SHORT).show()
             return
         }
 
         isLoading = true
         coroutineScope.launch {
-            delay(500L)
-            val name = if (selectedTab == 1 && displayName.isNotBlank()) displayName else email.substringBefore("@")
-            viewModel.loginWithEmail(name, email)
+            delay(400L)
+            val name = if (selectedTab == 1 && displayName.isNotBlank()) displayName.trim() else trimmedEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+            viewModel.loginWithEmail(name, trimmedEmail)
             isLoading = false
-            Toast.makeText(context, "Welcome back, $name!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Logged in as $trimmedEmail", Toast.LENGTH_SHORT).show()
             onLoginSuccess()
         }
-    }
-
-    fun handleGuestMode() {
-        viewModel.continueAsGuest()
-        Toast.makeText(context, "Exploring in Offline Trekker Mode", Toast.LENGTH_SHORT).show()
-        onLoginSuccess()
     }
 
     Box(
@@ -486,7 +481,7 @@ fun LoginScreen(
                             )
                         } else {
                             Text(
-                                text = if (selectedTab == 0) "SIGN IN TO AROLOCK" else "CREATE FREE ACCOUNT",
+                                text = if (selectedTab == 0) "SIGN IN WITH EMAIL" else "CREATE ACCOUNT WITH EMAIL",
                                 color = NightBlack,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
@@ -497,33 +492,12 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Guest / Offline Mode Button
-                    FilledTonalButton(
-                        onClick = { handleGuestMode() },
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = NightSurface,
-                            contentColor = TextSecondaryDark
-                        ),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .border(1.dp, NightCardBorder, RoundedCornerShape(14.dp))
-                            .testTag("guest_mode_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Explore,
-                            contentDescription = null,
-                            tint = AmberGold,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Continue as Offline Guest",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                    Text(
+                        text = "🔒 Secured account. Your trail logs, GPS routes, and photos are tied to your email.",
+                        color = TextSecondaryDark,
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
 

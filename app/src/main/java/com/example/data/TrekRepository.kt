@@ -57,8 +57,6 @@ class TrekRepository(
     fun loginWithEmail(displayName: String, email: String) =
         userPreferences.loginWithEmail(displayName, email)
 
-    fun loginAsGuest() = userPreferences.loginAsGuest()
-
     fun logout() = userPreferences.logout()
 
     fun setUnitSystem(useMetric: Boolean) = userPreferences.setUnitSystem(useMetric)

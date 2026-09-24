@@ -186,10 +186,6 @@ class TrekViewModel(
         repository.loginWithEmail(displayName, email)
     }
 
-    fun continueAsGuest() {
-        repository.loginAsGuest()
-    }
-
     fun logout() {
         repository.logout()
     }

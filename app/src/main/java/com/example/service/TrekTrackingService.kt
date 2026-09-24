@@ -269,7 +269,7 @@ class TrekTrackingService : Service(), SensorEventListener {
     }
 
     /**
-     * Ingests real GPS location from Android device hardware
+     * Ingests real GPS location from Android device hardware with stationary deadband
      */
     private fun processRealGpsLocation(location: Location) {
         val state = _recordingState.value
@@ -282,13 +282,10 @@ class TrekTrackingService : Service(), SensorEventListener {
 
         val lastPoint = state.points.lastOrNull()
         val distDelta = if (lastPoint != null) {
-            val results = FloatArray(1)
-            Location.distanceBetween(
+            GpsFilter.calculateDistance(
                 lastPoint.latitude, lastPoint.longitude,
-                location.latitude, location.longitude,
-                results
+                location.latitude, location.longitude
             )
-            results[0].toDouble()
         } else {
             0.0
         }
@@ -297,19 +294,20 @@ class TrekTrackingService : Service(), SensorEventListener {
             (now - lastPoint.timestamp) / 1000.0
         } else 0.0
 
-        // Calculate real instantaneous speed
+        // Strict physical movement check to reject stationary GPS jitter
+        val isMoving = GpsFilter.isGenuineMovement(lastPoint, location, distDelta, timeDeltaSeconds)
+
+        // Instantaneous speed: strictly 0 if stationary
         val computedSpeedMps: Float = when {
-            location.hasSpeed() && location.speed >= 0.1f -> location.speed
-            timeDeltaSeconds > 0.5 && distDelta >= 0.5 -> (distDelta / timeDeltaSeconds).toFloat()
-            distDelta < 0.3 -> 0f
-            else -> state.currentSpeedMps * 0.5f // Smooth decay
+            location.hasSpeed() -> if (location.speed >= GpsFilter.MIN_MOVING_SPEED_MPS) location.speed else 0f
+            isMoving && timeDeltaSeconds > 0.5 -> (distDelta / timeDeltaSeconds).toFloat().coerceIn(0f, 15f)
+            else -> 0f
         }
 
-        if (computedSpeedMps > 0.1f) {
+        if (isMoving && computedSpeedMps >= GpsFilter.MIN_MOVING_SPEED_MPS) {
             lastMovementTimestamp = System.currentTimeMillis()
         }
 
-        // Validate point using GpsFilter
         val tempPoint = GpsPoint(
             latitude = location.latitude,
             longitude = location.longitude,
@@ -319,25 +317,25 @@ class TrekTrackingService : Service(), SensorEventListener {
             timestamp = now
         )
 
-        val isValidMovement = GpsFilter.isValidPoint(lastPoint, tempPoint)
-
         val (smoothedAlt, gainDelta, lossDelta) = if (!state.hasBarometer && hasAltitude) {
             GpsFilter.processElevation(
                 lastAltitude = state.currentAltitude,
                 newRawAltitude = rawAltitude,
-                thresholdMeters = 2.0f
+                isMoving = isMoving,
+                thresholdMeters = 4.0f
             )
         } else {
-            Triple(state.currentAltitude, 0.0, 0.0)
+            Triple(if (state.currentAltitude == 0.0) rawAltitude else state.currentAltitude, 0.0, 0.0)
         }
 
-        val newPoints = if (isValidMovement || state.points.isEmpty()) {
+        // Only append to route and increment distance when physically moving
+        val newPoints = if (isMoving || state.points.isEmpty()) {
             state.points + tempPoint
         } else {
             state.points
         }
 
-        val newDistance = if (isValidMovement) state.currentDistanceMeters + distDelta else state.currentDistanceMeters
+        val newDistance = if (isMoving) state.currentDistanceMeters + distDelta else state.currentDistanceMeters
         val newGain = state.elevationGainMeters + gainDelta
         val newLoss = state.elevationLossMeters + lossDelta
 
@@ -347,7 +345,7 @@ class TrekTrackingService : Service(), SensorEventListener {
 
         val newMaxSpeed = max(state.maxSpeedMps, computedSpeedMps)
         val duration = state.elapsedTimeSeconds
-        val avgSpeed = if (duration > 0) (newDistance / duration).toFloat() else 0f
+        val avgSpeed = if (duration > 0 && newDistance > 0) (newDistance / duration).toFloat() else 0f
 
         val calories = CalorieCalculator.estimateCalories(
             durationSeconds = duration,
@@ -431,24 +429,25 @@ class TrekTrackingService : Service(), SensorEventListener {
                 } else {
                     val prevAlt = lastBarometerAltitude ?: rawBaroAlt
                     val altDelta = rawBaroAlt - prevAlt
+                    lastBarometerAltitude = rawBaroAlt
 
-                    // Filter micro barometric atmospheric jitter (< 0.6m)
-                    if (abs(altDelta) >= 0.6) {
-                        lastBarometerAltitude = rawBaroAlt
-                        val newGain = if (altDelta > 0) state.elevationGainMeters + altDelta else state.elevationGainMeters
-                        val newLoss = if (altDelta < 0) state.elevationLossMeters + abs(altDelta) else state.elevationLossMeters
-                        val newMin = if (state.minAltitude == 0.0) rawBaroAlt else min(state.minAltitude, rawBaroAlt)
-                        val newMax = max(state.maxAltitude, rawBaroAlt)
+                    val timeSinceMovement = System.currentTimeMillis() - lastMovementTimestamp
+                    val isUserActive = timeSinceMovement < 3000L
 
-                        _recordingState.update {
-                            it.copy(
-                                currentAltitude = rawBaroAlt,
-                                elevationGainMeters = newGain,
-                                elevationLossMeters = newLoss,
-                                minAltitude = newMin,
-                                maxAltitude = newMax
-                            )
-                        }
+                    // Only count elevation change if user is physically active and vertical delta is genuine (>= 2.5m)
+                    val newGain = if (isUserActive && altDelta >= 2.5) state.elevationGainMeters + altDelta else state.elevationGainMeters
+                    val newLoss = if (isUserActive && altDelta <= -2.5) state.elevationLossMeters + abs(altDelta) else state.elevationLossMeters
+                    val newMin = if (state.minAltitude == 0.0) rawBaroAlt else min(state.minAltitude, rawBaroAlt)
+                    val newMax = max(state.maxAltitude, rawBaroAlt)
+
+                    _recordingState.update {
+                        it.copy(
+                            currentAltitude = rawBaroAlt,
+                            elevationGainMeters = newGain,
+                            elevationLossMeters = newLoss,
+                            minAltitude = newMin,
+                            maxAltitude = newMax
+                        )
                     }
                 }
             }
@@ -460,11 +459,8 @@ class TrekTrackingService : Service(), SensorEventListener {
         val durationMinutes = state.elapsedTimeSeconds / 60.0
         val cadence = if (durationMinutes > 0) (currentLiveSteps / durationMinutes).toInt() else 0
 
-        // If distance from GPS is 0 or user is walking with device indoors, calculate realistic distance from step stride
-        // Average human hiking stride is ~0.76 meters per step
-        val stepStrideMeters = 0.76
-        val stepDistance = currentLiveSteps * stepStrideMeters
-        val finalDistance = max(state.currentDistanceMeters, if (state.points.size <= 2) stepDistance else state.currentDistanceMeters)
+        // Real distance is governed strictly by GPS displacement
+        val finalDistance = state.currentDistanceMeters
 
         val calories = CalorieCalculator.estimateCalories(
             durationSeconds = state.elapsedTimeSeconds,

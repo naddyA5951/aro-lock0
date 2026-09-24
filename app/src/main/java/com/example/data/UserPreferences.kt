@@ -18,13 +18,15 @@ class UserPreferences(context: Context) {
     val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
 
     private fun loadProfile(): UserProfile {
+        val savedEmail = prefs.getString("user_email", "") ?: ""
+        val savedLoggedIn = prefs.getBoolean("is_logged_in", false) && savedEmail.isNotBlank()
         return UserProfile(
             id = prefs.getString("user_id", "user_${System.currentTimeMillis()}") ?: "user_default",
-            name = prefs.getString("user_name", "Trail Pioneer") ?: "Trail Pioneer",
-            email = prefs.getString("user_email", "trekker@arolock.app") ?: "trekker@arolock.app",
+            name = prefs.getString("user_name", "") ?: "",
+            email = savedEmail,
             photoUri = prefs.getString("user_photo_uri", null),
-            authProvider = prefs.getString("auth_provider", "Guest") ?: "Guest",
-            isLoggedIn = prefs.getBoolean("is_logged_in", false),
+            authProvider = prefs.getString("auth_provider", "Email") ?: "Email",
+            isLoggedIn = savedLoggedIn,
             age = prefs.getInt("user_age", 28),
             weightKg = prefs.getFloat("user_weight", 70f),
             gender = prefs.getString("user_gender", "Other") ?: "Other",
@@ -43,7 +45,7 @@ class UserPreferences(context: Context) {
             putString("user_email", profile.email)
             putString("user_photo_uri", profile.photoUri)
             putString("auth_provider", profile.authProvider)
-            putBoolean("is_logged_in", profile.isLoggedIn)
+            putBoolean("is_logged_in", profile.isLoggedIn && profile.email.isNotBlank())
             putInt("user_age", profile.age)
             putFloat("user_weight", profile.weightKg)
             putString("user_gender", profile.gender)
@@ -62,7 +64,7 @@ class UserPreferences(context: Context) {
         saveProfile(
             current.copy(
                 name = displayName.ifEmpty { "Explorer" },
-                email = email.ifEmpty { "explorer@gmail.com" },
+                email = email.trim(),
                 photoUri = photoUri,
                 authProvider = "Google",
                 isLoggedIn = true
@@ -72,23 +74,12 @@ class UserPreferences(context: Context) {
 
     fun loginWithEmail(displayName: String, email: String) {
         val current = _userProfile.value
+        val name = displayName.ifBlank { email.substringBefore("@").replaceFirstChar { it.uppercase() } }
         saveProfile(
             current.copy(
-                name = displayName.ifEmpty { email.substringBefore("@").replaceFirstChar { it.uppercase() } },
-                email = email,
+                name = name,
+                email = email.trim(),
                 authProvider = "Email",
-                isLoggedIn = true
-            )
-        )
-    }
-
-    fun loginAsGuest() {
-        val current = _userProfile.value
-        saveProfile(
-            current.copy(
-                name = "Offline Trekker",
-                email = "offline.adventurer@arolock.local",
-                authProvider = "Guest",
                 isLoggedIn = true
             )
         )
@@ -99,7 +90,9 @@ class UserPreferences(context: Context) {
         saveProfile(
             current.copy(
                 isLoggedIn = false,
-                authProvider = "Guest"
+                email = "",
+                name = "",
+                authProvider = "Email"
             )
         )
     }
