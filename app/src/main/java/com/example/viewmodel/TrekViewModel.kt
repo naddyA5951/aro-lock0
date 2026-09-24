@@ -167,6 +167,33 @@ class TrekViewModel(
         }
     }
 
+    fun addMediaToSavedTrek(trekId: Long, path: String) {
+        viewModelScope.launch {
+            val trek = repository.getTrekById(trekId) ?: return@launch
+            val currentMedia = GpsPointJsonHelper.jsonToStringList(trek.mediaPathsJson).toMutableList()
+            if (!currentMedia.contains(path)) {
+                currentMedia.add(path)
+                repository.updateTrek(trek.copy(mediaPathsJson = GpsPointJsonHelper.stringListToJson(currentMedia)))
+            }
+        }
+    }
+
+    fun loginWithGoogle(displayName: String, email: String, photoUri: String? = null) {
+        repository.loginWithGoogle(displayName, email, photoUri)
+    }
+
+    fun loginWithEmail(displayName: String, email: String) {
+        repository.loginWithEmail(displayName, email)
+    }
+
+    fun continueAsGuest() {
+        repository.loginAsGuest()
+    }
+
+    fun logout() {
+        repository.logout()
+    }
+
     fun updateProfile(profile: UserProfile) {
         repository.updateProfile(profile)
     }

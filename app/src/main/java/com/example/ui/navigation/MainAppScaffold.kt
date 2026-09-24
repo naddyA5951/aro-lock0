@@ -1,5 +1,8 @@
 package com.example.ui.navigation
 
+import android.app.Activity
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -20,7 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -30,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.RecordingScreen
 import com.example.ui.screens.SaveTrekScreen
@@ -49,6 +53,7 @@ import com.example.viewmodel.TrekViewModel
 
 enum class Screen {
     SPLASH,
+    LOGIN,
     HOME,
     TRAILS_EXPLORER,
     RECORDING,
@@ -59,6 +64,11 @@ enum class Screen {
     SETTINGS
 }
 
+data class NavDestination(
+    val screen: Screen,
+    val trekId: Long = 0L
+)
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun MainAppScaffold(
@@ -66,10 +76,70 @@ fun MainAppScaffold(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var currentScreen by remember { mutableStateOf(Screen.SPLASH) }
-    var selectedTrekId by remember { mutableLongStateOf(0L) }
-
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val recordingState by viewModel.recordingState.collectAsStateWithLifecycle()
+
+    // Navigation backstack maintaining full screen history
+    val navigationBackStack = remember {
+        mutableStateListOf(NavDestination(Screen.SPLASH))
+    }
+
+    val currentNav = navigationBackStack.lastOrNull() ?: NavDestination(Screen.HOME)
+    val currentScreen = currentNav.screen
+    val selectedTrekId = currentNav.trekId
+
+    // Push new destination to backstack
+    fun navigateTo(screen: Screen, trekId: Long = 0L, clearTop: Boolean = false) {
+        if (clearTop) {
+            navigationBackStack.clear()
+            navigationBackStack.add(NavDestination(screen, trekId))
+        } else {
+            // Prevent pushing identical consecutive screen
+            if (navigationBackStack.lastOrNull()?.screen == screen && navigationBackStack.lastOrNull()?.trekId == trekId) {
+                return
+            }
+
+            // If navigating to root tabs, manage smoothly
+            if (screen == Screen.HOME) {
+                while (navigationBackStack.size > 1) {
+                    navigationBackStack.removeAt(navigationBackStack.lastIndex)
+                }
+                if (navigationBackStack.firstOrNull()?.screen != Screen.HOME) {
+                    navigationBackStack[0] = NavDestination(Screen.HOME)
+                }
+                return
+            }
+
+            navigationBackStack.add(NavDestination(screen, trekId))
+        }
+    }
+
+    // Pop top destination from backstack
+    fun navigateBack(): Boolean {
+        if (navigationBackStack.size > 1) {
+            navigationBackStack.removeAt(navigationBackStack.lastIndex)
+            return true
+        }
+        return false
+    }
+
+    // System Back Press handling
+    var lastBackPressMillis by remember { mutableLongStateOf(0L) }
+
+    BackHandler(enabled = true) {
+        if (navigationBackStack.size > 1) {
+            navigateBack()
+        } else {
+            // At root of navigation (e.g. HOME screen or LOGIN screen)
+            val now = System.currentTimeMillis()
+            if (now - lastBackPressMillis < 2000L) {
+                (context as? Activity)?.finish()
+            } else {
+                lastBackPressMillis = now
+                Toast.makeText(context, "Press back again to exit Arolock", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     val showBottomBar = currentScreen in listOf(
         Screen.HOME,
@@ -90,7 +160,7 @@ fun MainAppScaffold(
                     // Home Tab
                     NavigationBarItem(
                         selected = currentScreen == Screen.HOME,
-                        onClick = { currentScreen = Screen.HOME },
+                        onClick = { navigateTo(Screen.HOME) },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Home,
@@ -111,7 +181,7 @@ fun MainAppScaffold(
                     // Trails & Maps Tab
                     NavigationBarItem(
                         selected = currentScreen == Screen.TRAILS_EXPLORER,
-                        onClick = { currentScreen = Screen.TRAILS_EXPLORER },
+                        onClick = { navigateTo(Screen.TRAILS_EXPLORER) },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Explore,
@@ -132,7 +202,7 @@ fun MainAppScaffold(
                     // Record Tab (Live trek action)
                     NavigationBarItem(
                         selected = currentScreen == Screen.RECORDING,
-                        onClick = { currentScreen = Screen.RECORDING },
+                        onClick = { navigateTo(Screen.RECORDING) },
                         icon = {
                             if (recordingState.isRecording) {
                                 BadgedBox(
@@ -173,7 +243,7 @@ fun MainAppScaffold(
                     // Treks Logbook Tab
                     NavigationBarItem(
                         selected = currentScreen == Screen.SAVED_TREKS,
-                        onClick = { currentScreen = Screen.SAVED_TREKS },
+                        onClick = { navigateTo(Screen.SAVED_TREKS) },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Terrain,
@@ -194,7 +264,7 @@ fun MainAppScaffold(
                     // Profile Tab
                     NavigationBarItem(
                         selected = currentScreen == Screen.PROFILE,
-                        onClick = { currentScreen = Screen.PROFILE },
+                        onClick = { navigateTo(Screen.PROFILE) },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Person,
@@ -225,21 +295,35 @@ fun MainAppScaffold(
             when (currentScreen) {
                 Screen.SPLASH -> {
                     SplashScreen(
-                        onTimeout = { currentScreen = Screen.HOME }
+                        onTimeout = {
+                            if (userProfile.isLoggedIn) {
+                                navigateTo(Screen.HOME, clearTop = true)
+                            } else {
+                                navigateTo(Screen.LOGIN, clearTop = true)
+                            }
+                        }
+                    )
+                }
+
+                Screen.LOGIN -> {
+                    LoginScreen(
+                        viewModel = viewModel,
+                        onLoginSuccess = {
+                            navigateTo(Screen.HOME, clearTop = true)
+                        }
                     )
                 }
 
                 Screen.HOME -> {
                     HomeScreen(
                         viewModel = viewModel,
-                        onStartTrekClick = { currentScreen = Screen.RECORDING },
-                        onExploreTrailsClick = { currentScreen = Screen.TRAILS_EXPLORER },
+                        onStartTrekClick = { navigateTo(Screen.RECORDING) },
+                        onExploreTrailsClick = { navigateTo(Screen.TRAILS_EXPLORER) },
                         onViewTrekDetails = { id ->
-                            selectedTrekId = id
-                            currentScreen = Screen.TREK_DETAILS
+                            navigateTo(Screen.TREK_DETAILS, trekId = id)
                         },
-                        onViewAllTreks = { currentScreen = Screen.SAVED_TREKS },
-                        onSettingsClick = { currentScreen = Screen.SETTINGS }
+                        onViewAllTreks = { navigateTo(Screen.SAVED_TREKS) },
+                        onSettingsClick = { navigateTo(Screen.SETTINGS) }
                     )
                 }
 
@@ -249,7 +333,7 @@ fun MainAppScaffold(
                         onStartTrailTrek = { trail ->
                             viewModel.selectCatalogTrail(trail)
                             viewModel.startTrek(context, trail = trail)
-                            currentScreen = Screen.RECORDING
+                            navigateTo(Screen.RECORDING)
                         }
                     )
                 }
@@ -257,8 +341,8 @@ fun MainAppScaffold(
                 Screen.RECORDING -> {
                     RecordingScreen(
                         viewModel = viewModel,
-                        onFinishTrek = { currentScreen = Screen.SAVE_TREK },
-                        onNavigateBack = { currentScreen = Screen.HOME }
+                        onFinishTrek = { navigateTo(Screen.SAVE_TREK) },
+                        onNavigateBack = { navigateBack() }
                     )
                 }
 
@@ -266,10 +350,9 @@ fun MainAppScaffold(
                     SaveTrekScreen(
                         viewModel = viewModel,
                         onSavedSuccessfully = { newId ->
-                            selectedTrekId = newId
-                            currentScreen = Screen.TREK_DETAILS
+                            navigateTo(Screen.TREK_DETAILS, trekId = newId, clearTop = false)
                         },
-                        onDiscarded = { currentScreen = Screen.HOME }
+                        onDiscarded = { navigateBack() }
                     )
                 }
 
@@ -277,8 +360,7 @@ fun MainAppScaffold(
                     SavedTreksScreen(
                         viewModel = viewModel,
                         onTrekClick = { id ->
-                            selectedTrekId = id
-                            currentScreen = Screen.TREK_DETAILS
+                            navigateTo(Screen.TREK_DETAILS, trekId = id)
                         }
                     )
                 }
@@ -287,20 +369,23 @@ fun MainAppScaffold(
                     TrekDetailsScreen(
                         trekId = selectedTrekId,
                         viewModel = viewModel,
-                        onNavigateBack = { currentScreen = Screen.SAVED_TREKS }
+                        onNavigateBack = { navigateBack() }
                     )
                 }
 
                 Screen.PROFILE -> {
                     ProfileScreen(
-                        viewModel = viewModel
+                        viewModel = viewModel,
+                        onNavigateToLogin = {
+                            navigateTo(Screen.LOGIN, clearTop = true)
+                        }
                     )
                 }
 
                 Screen.SETTINGS -> {
                     SettingsScreen(
                         viewModel = viewModel,
-                        onNavigateBack = { currentScreen = Screen.HOME }
+                        onNavigateBack = { navigateBack() }
                     )
                 }
             }

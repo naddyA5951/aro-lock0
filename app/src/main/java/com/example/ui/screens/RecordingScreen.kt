@@ -2,8 +2,11 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -25,7 +28,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddLocation
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.FiberManualRecord
@@ -38,10 +43,13 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -51,6 +59,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.core.content.FileProvider
+import java.io.File
+import java.io.FileOutputStream
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -98,6 +109,84 @@ fun RecordingScreen(
     var showFinishDialog by remember { mutableStateOf(false) }
     var showElevationSheet by remember { mutableStateOf(false) }
     var showAddWaypointDialog by remember { mutableStateOf(false) }
+    var showPhotoCaptureDialog by remember { mutableStateOf(false) }
+    var pendingCameraPhotoFile by remember { mutableStateOf<File?>(null) }
+
+    fun onNewPhotoAdded(path: String) {
+        viewModel.addMediaToActiveTrek(context, path)
+        val lat = recordingState.lastKnownLocation?.latitude ?: 0.0
+        val lon = recordingState.lastKnownLocation?.longitude ?: 0.0
+        val alt = recordingState.currentAltitude
+        val wp = TrekWaypoint(
+            title = "Trail Photo #${recordingState.attachedMediaPaths.size + 1}",
+            type = WaypointType.PHOTO_POINT,
+            latitude = lat,
+            longitude = lon,
+            altitude = alt,
+            note = path
+        )
+        viewModel.addWaypointToActiveTrek(context, wp)
+        Toast.makeText(context, "Photo captured & geo-tagged!", Toast.LENGTH_SHORT).show()
+    }
+
+    val cameraPhotoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && pendingCameraPhotoFile != null && pendingCameraPhotoFile!!.exists() && pendingCameraPhotoFile!!.length() > 0) {
+            onNewPhotoAdded(pendingCameraPhotoFile!!.absolutePath)
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val file = File(context.filesDir, "trek_live_${System.currentTimeMillis()}.jpg")
+                pendingCameraPhotoFile = file
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                cameraPhotoLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Camera launch error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Camera permission needed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val livePhotoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val destFile = File(context.filesDir, "trek_live_${System.currentTimeMillis()}.jpg")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(destFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                onNewPhotoAdded(destFile.absolutePath)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to load photo: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun triggerCameraCapture() {
+        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            try {
+                val file = File(context.filesDir, "trek_live_${System.currentTimeMillis()}.jpg")
+                pendingCameraPhotoFile = file
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                cameraPhotoLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     // Check location and activity recognition permissions
     var hasLocationPermission by remember {
@@ -223,6 +312,47 @@ fun RecordingScreen(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Capture / Upload Photo Action
+                    if (recordingState.isRecording) {
+                        IconButton(
+                            onClick = { showPhotoCaptureDialog = true },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(if (recordingState.attachedMediaPaths.isNotEmpty()) SageGreen else Color(0xFF48CAE4))
+                                .testTag("snap_photo_button")
+                        ) {
+                            if (recordingState.attachedMediaPaths.isNotEmpty()) {
+                                BadgedBox(
+                                    badge = {
+                                        Badge(containerColor = AmberGold) {
+                                            Text(
+                                                "${recordingState.attachedMediaPaths.size}",
+                                                fontSize = 9.sp,
+                                                color = NightBlack,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CameraAlt,
+                                        contentDescription = "Capture Photo",
+                                        tint = NightBlack,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = "Capture Photo",
+                                    tint = NightBlack,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
+
                     // Waypoint Dropping Action
                     if (recordingState.isRecording) {
                         IconButton(
@@ -743,4 +873,98 @@ fun RecordingScreen(
             containerColor = NightCard
         )
     }
+
+    // Photo Capture / Upload Dialog during live trek
+    if (showPhotoCaptureDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhotoCaptureDialog = false },
+            title = {
+                Text(
+                    text = "Snap Trail Photo",
+                    color = TextPrimaryDark,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Take a photo right now with your camera or select from your gallery. It will be geo-tagged and pinned to your live trek route.",
+                        color = TextSecondaryDark,
+                        fontSize = 13.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Button(
+                        onClick = {
+                            showPhotoCaptureDialog = false
+                            triggerCameraCapture()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SageGreen),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("live_take_camera_photo")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            tint = NightBlack,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Take Photo with Camera",
+                            color = NightBlack,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    FilledTonalButton(
+                        onClick = {
+                            showPhotoCaptureDialog = false
+                            livePhotoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = NightBlack,
+                            contentColor = TextPrimaryDark
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("live_upload_gallery_photo")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AddPhotoAlternate,
+                            contentDescription = null,
+                            tint = AmberGold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Upload from Gallery",
+                            color = TextPrimaryDark,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPhotoCaptureDialog = false }) {
+                    Text("Cancel", color = TextSecondaryDark)
+                }
+            },
+            containerColor = NightCard,
+            shape = RoundedCornerShape(18.dp)
+        )
+    }
 }
+

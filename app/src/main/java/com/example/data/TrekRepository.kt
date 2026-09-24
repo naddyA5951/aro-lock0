@@ -51,6 +51,16 @@ class TrekRepository(
 
     fun updateProfile(profile: UserProfile) = userPreferences.saveProfile(profile)
 
+    fun loginWithGoogle(displayName: String, email: String, photoUri: String? = null) =
+        userPreferences.loginWithGoogle(displayName, email, photoUri)
+
+    fun loginWithEmail(displayName: String, email: String) =
+        userPreferences.loginWithEmail(displayName, email)
+
+    fun loginAsGuest() = userPreferences.loginAsGuest()
+
+    fun logout() = userPreferences.logout()
+
     fun setUnitSystem(useMetric: Boolean) = userPreferences.setUnitSystem(useMetric)
 
     fun setDarkMode(isDark: Boolean) = userPreferences.setDarkMode(isDark)

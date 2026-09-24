@@ -55,9 +55,14 @@ import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
 import com.example.viewmodel.TrekViewModel
 
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.OutlinedButton
+
 @Composable
 fun ProfileScreen(
     viewModel: TrekViewModel,
+    onNavigateToLogin: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
@@ -94,7 +99,7 @@ fun ProfileScreen(
                     fontWeight = FontWeight.ExtraBold
                 )
                 Text(
-                    text = "Used exclusively on your device for accurate calorie and pace estimates.",
+                    text = "Used on your device for physical calories, pace estimates, and cloud sync.",
                     color = TextSecondaryDark,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 2.dp)
@@ -102,46 +107,110 @@ fun ProfileScreen(
             }
         }
 
-        // Avatar placeholder
+        // Account & Avatar Card
         item {
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = NightCard),
+                border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.NightCardBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(SageGreen),
-                        contentAlignment = Alignment.Center
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = NightBlack,
-                            modifier = Modifier.size(32.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(58.dp)
+                                .clip(CircleShape)
+                                .background(SageGreen),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = name.take(1).uppercase().ifEmpty { "A" },
+                                color = NightBlack,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = name.ifEmpty { "Explorer" },
+                                color = TextPrimaryDark,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = userProfile.email,
+                                color = TextSecondaryDark,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = when (userProfile.authProvider) {
+                                    "Google" -> Color(0xFF4285F4).copy(alpha = 0.2f)
+                                    "Email" -> SageGreen.copy(alpha = 0.2f)
+                                    else -> AmberGold.copy(alpha = 0.2f)
+                                }
+                            ) {
+                                Text(
+                                    text = when (userProfile.authProvider) {
+                                        "Google" -> "✓ Google Account"
+                                        "Email" -> "✓ Email Account"
+                                        else -> "Offline Adventurer"
+                                    },
+                                    color = when (userProfile.authProvider) {
+                                        "Google" -> Color(0xFF8AB4F8)
+                                        "Email" -> SageGreen
+                                        else -> AmberGold
+                                    },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = name.ifEmpty { "Explorer" },
-                            color = TextPrimaryDark,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                            text = "Member Since: ${userProfile.memberSince}",
+                            color = TextSecondaryDark,
+                            fontSize = 11.sp
                         )
-                        Text(
-                            text = if (useMetric) "${weightText} kg • Metric" else "${(weightText.toFloatOrNull() ?: 70f * 2.2f).toInt()} lbs • Imperial",
-                            color = SageGreen,
-                            fontSize = 13.sp
-                        )
+
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.logout()
+                                onNavigateToLogin()
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.testTag("profile_switch_account_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ExitToApp,
+                                contentDescription = null,
+                                tint = AmberGold,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (userProfile.isLoggedIn) "Sign Out" else "Sign In",
+                                color = AmberGold,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             }

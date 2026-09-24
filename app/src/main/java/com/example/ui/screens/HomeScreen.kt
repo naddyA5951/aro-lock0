@@ -102,7 +102,7 @@ fun HomeScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Header Row: User Greeting & Settings icon
+            // Header Row: User Greeting, Account badge & Settings icon
             item {
                 Row(
                     modifier = Modifier
@@ -111,25 +111,65 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(
-                            text = "$greeting, ${userProfile.name}",
-                            color = TextSecondaryDark,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "Ready for your next adventure?",
-                            color = TextPrimaryDark,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        // User Avatar
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background(SageGreen),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = userProfile.name.take(1).uppercase().ifEmpty { "A" },
+                                color = NightBlack,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "$greeting, ${userProfile.name}",
+                                    color = TextPrimaryDark,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                if (userProfile.authProvider == "Google") {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFF4285F4).copy(alpha = 0.2f)
+                                    ) {
+                                        Text(
+                                            text = "G",
+                                            color = Color(0xFF8AB4F8),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = "Ready for your next expedition?",
+                                color = TextSecondaryDark,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
                     }
 
                     IconButton(
                         onClick = onSettingsClick,
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
                             .background(NightCard)
                             .testTag("home_settings_button")
