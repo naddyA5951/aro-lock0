@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -11,6 +12,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -20,24 +22,36 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,6 +91,8 @@ import com.example.ui.theme.DangerRed
 import com.example.ui.theme.ForestGreen
 import com.example.ui.theme.NightBlack
 import com.example.ui.theme.NightCard
+import com.example.ui.theme.NightCardBorder
+import com.example.ui.theme.NightSurface
 import com.example.ui.theme.PineDeep
 import com.example.ui.theme.SageGreen
 import com.example.ui.theme.Terracotta
@@ -99,11 +115,89 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.math.tan
 
-enum class MapLayerStyle(val label: String, val subtitle: String) {
-    TOPO("Outdoor Topo", "Contours & trails"),
-    STREET("OpenStreetMap", "Standard world map"),
-    NIGHT("Night Trail", "High-contrast luminescent"),
-    SATELLITE("Terrain Relief", "Elevation hillshade")
+enum class MapLayerStyle(
+    val key: String,
+    val label: String,
+    val subtitle: String,
+    val iconEmoji: String,
+    val baseColor: Color
+) {
+    TOPO(
+        key = "TOPO",
+        label = "Outdoor Topo",
+        subtitle = "Contours & mountain relief",
+        iconEmoji = "🏔️",
+        baseColor = Color(0xFF0F1E16)
+    ),
+    SATELLITE(
+        key = "SATELLITE",
+        label = "Satellite Aerial",
+        subtitle = "High-res Earth imagery",
+        iconEmoji = "🛰️",
+        baseColor = Color(0xFF0B1218)
+    ),
+    TERRAIN(
+        key = "TERRAIN",
+        label = "Mountain Relief",
+        subtitle = "Hillshading & ridge peaks",
+        iconEmoji = "🧭",
+        baseColor = Color(0xFF14191C)
+    ),
+    DARK_TACTICAL(
+        key = "DARK",
+        label = "Dark Tactical",
+        subtitle = "Night OLED & luminescent trail",
+        iconEmoji = "🌑",
+        baseColor = Color(0xFF07090A)
+    ),
+    STREET(
+        key = "STREET",
+        label = "OpenStreetMap",
+        subtitle = "Worldwide trail roads & landmarks",
+        iconEmoji = "🗺️",
+        baseColor = Color(0xFF161F24)
+    ),
+    NEON_TRAIL(
+        key = "NEON",
+        label = "High-Visibility Neon",
+        subtitle = "Glacier & direct sunlight HUD",
+        iconEmoji = "⚡",
+        baseColor = Color(0xFF0B141C)
+    ),
+    NATGEO(
+        key = "NATGEO",
+        label = "National Geographic",
+        subtitle = "Classic NatGeo cartography & landforms",
+        iconEmoji = "🌎",
+        baseColor = Color(0xFF141915)
+    ),
+    CYCLOSM(
+        key = "CYCLOSM",
+        label = "Cycling & Hiking Trails",
+        subtitle = "Dedicated trail networks & elevation grades",
+        iconEmoji = "🚴",
+        baseColor = Color(0xFF131B15)
+    ),
+    WINTER_ALPINE(
+        key = "WINTER",
+        label = "Winter Alpine Snow",
+        subtitle = "High-contrast snow peaks & glacier routes",
+        iconEmoji = "❄️",
+        baseColor = Color(0xFF1A1F26)
+    ),
+    USGS_SHADED(
+        key = "USGS",
+        label = "USGS Shaded Relief",
+        subtitle = "Detailed elevation contour shading",
+        iconEmoji = "⛰️",
+        baseColor = Color(0xFF151815)
+    );
+
+    companion object {
+        fun fromKey(key: String): MapLayerStyle {
+            return values().firstOrNull { it.key.equals(key, ignoreCase = true) } ?: TOPO
+        }
+    }
 }
 
 private val sharedTileClient by lazy {
@@ -113,12 +207,12 @@ private val sharedTileClient by lazy {
 /**
  * Universal interactive route and trail map widget.
  * Features:
- * - Topographic contour simulation + OpenStreetMap tile rendering
+ * - 6 Switchable Map Styles (Outdoor Topo, Satellite Aerial, Mountain Relief, Dark Tactical, OSM, Neon)
+ * - Real tile caching & rendering with vector contour fallback
  * - Reference guide trail & live recorded GPS trail paths
- * - Waypoint pins (Summits, Water, Campsites, Viewpoints, Hazards)
- * - Layer switcher (Topo, Standard, Night, Terrain)
+ * - Waypoint pins (Summits, Water, Campsites, Viewpoints, Photos, Hazards)
+ * - Layer switcher dialog with visual cards
  * - Recenter on user, Follow mode, Zoom controls, Compass
- * - Works 100% offline with vector contour fallback
  */
 @Composable
 fun ArolockMapWidget(
@@ -130,13 +224,15 @@ fun ArolockMapWidget(
     isInteractive: Boolean = true,
     showControls: Boolean = true,
     autoCenterOnUser: Boolean = true,
-    initialZoom: Float = 14.2f
+    initialZoom: Float = 14.2f,
+    initialStyle: MapLayerStyle = MapLayerStyle.TOPO,
+    onMapStyleChanged: ((MapLayerStyle) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var mapStyle by remember { mutableStateOf(MapLayerStyle.TOPO) }
-    var showLayerMenu by remember { mutableStateOf(false) }
+    var mapStyle by remember { mutableStateOf(initialStyle) }
+    var showStyleChooserDialog by remember { mutableStateOf(false) }
     var selectedWaypoint by remember { mutableStateOf<TrekWaypoint?>(null) }
 
     val defaultLat = currentLocation?.latitude
@@ -203,7 +299,6 @@ fun ArolockMapWidget(
             centerLng = (minLng + maxLng) / 2.0
             followUser = false
 
-            // Auto-scale zoom according to bounding box span
             val dLat = maxLat - minLat
             val dLng = maxLng - minLng
             val maxSpan = max(dLat, dLng)
@@ -222,7 +317,7 @@ fun ArolockMapWidget(
         modifier = modifier
             .fillMaxSize()
             .clip(RoundedCornerShape(16.dp))
-            .background(NightBlack)
+            .background(mapStyle.baseColor)
     ) {
         Canvas(
             modifier = Modifier
@@ -237,14 +332,13 @@ fun ArolockMapWidget(
                                     val height = size.height.toFloat()
                                     val centerWorld = latLngToWorldMercator(centerLat, centerLng, zoomLevel)
 
-                                    // Check if tapped near any waypoint (within 28dp)
-                                    val tappedWp = waypoints.firstOrNull { wp ->
+                                    val tappedWaypoint = waypoints.firstOrNull { wp ->
                                         val wpWorld = latLngToWorldMercator(wp.latitude, wp.longitude, zoomLevel)
                                         val wpScreen = worldMercatorToScreen(wpWorld, centerWorld, width, height)
-                                        val dist = sqrt((wpScreen.x - tapOffset.x).pow(2) + (wpScreen.y - tapOffset.y).pow(2))
-                                        dist < 40f
+                                        val dist = sqrt((tapOffset.x - wpScreen.x).pow(2) + (tapOffset.y - wpScreen.y).pow(2))
+                                        dist < 32f
                                     }
-                                    selectedWaypoint = tappedWp
+                                    selectedWaypoint = tappedWaypoint
                                 }
                             }
                             .pointerInput(Unit) {
@@ -253,9 +347,9 @@ fun ArolockMapWidget(
                                     zoomLevel = (zoomLevel * zoom).coerceIn(3.0f, 18.5f)
 
                                     val scale = 256.0 * 2.0.pow(zoomLevel.toDouble())
-                                    val dLng = -pan.x / scale * 360.0
-                                    val rad = centerLat * PI / 180.0
-                                    val dLat = (pan.y / scale) * (360.0 * cos(rad))
+                                    val dLng = -(pan.x / scale) * 360.0
+                                    val latRad = centerLat * PI / 180.0
+                                    val dLat = (pan.y / scale) * 360.0 * cos(latRad)
 
                                     centerLng = (centerLng + dLng).coerceIn(-180.0, 180.0)
                                     centerLat = (centerLat + dLat).coerceIn(-85.0, 85.0)
@@ -266,84 +360,83 @@ fun ArolockMapWidget(
         ) {
             val width = size.width
             val height = size.height
-            val intZoom = zoomLevel.toInt().coerceIn(1, 18)
+            val intZoom = zoomLevel.toInt().coerceIn(0, 18)
             val centerWorld = latLngToWorldMercator(centerLat, centerLng, zoomLevel)
 
-            // Background base color based on map style
-            val bgColor = when (mapStyle) {
-                MapLayerStyle.TOPO -> Color(0xFF0F1E16)
-                MapLayerStyle.STREET -> Color(0xFF161F24)
-                MapLayerStyle.NIGHT -> Color(0xFF090D0C)
-                MapLayerStyle.SATELLITE -> Color(0xFF141917)
-            }
-            drawRect(color = bgColor)
+            // Draw base background color based on map style
+            drawRect(color = mapStyle.baseColor)
 
             // Draw offline topographic contour simulation lines
             drawTopoContourGrid(width, height, centerLat, centerLng, zoomLevel, mapStyle)
 
-            // Render visible OpenStreetMap tiles if not in pure night stealth
-            if (mapStyle != MapLayerStyle.NIGHT) {
-                val tileSize = 256f * (2.0.pow((zoomLevel - intZoom).toDouble())).toFloat()
-                val centerTileX = lon2tile(centerLng, intZoom)
-                val centerTileY = lat2tile(centerLat, intZoom)
+            // Render visible tiles for the selected MapLayerStyle
+            val tileSize = 256f * (2.0.pow((zoomLevel - intZoom).toDouble())).toFloat()
+            val centerTileX = lon2tile(centerLng, intZoom)
+            val centerTileY = lat2tile(centerLat, intZoom)
 
-                val tilesX = (width / tileSize).toInt() + 2
-                val tilesY = (height / tileSize).toInt() + 2
+            val tilesX = (width / tileSize).toInt() + 2
+            val tilesY = (height / tileSize).toInt() + 2
 
-                val minTileX = max(0, centerTileX - tilesX / 2)
-                val maxTileX = min((1 shl intZoom) - 1, centerTileX + tilesX / 2 + 1)
-                val minTileY = max(0, centerTileY - tilesY / 2)
-                val maxTileY = min((1 shl intZoom) - 1, centerTileY + tilesY / 2 + 1)
+            val minTileX = max(0, centerTileX - tilesX / 2)
+            val maxTileX = min((1 shl intZoom) - 1, centerTileX + tilesX / 2 + 1)
+            val minTileY = max(0, centerTileY - tilesY / 2)
+            val maxTileY = min((1 shl intZoom) - 1, centerTileY + tilesY / 2 + 1)
 
-                for (tx in minTileX..maxTileX) {
-                    for (ty in minTileY..maxTileY) {
-                        val tileKey = "$intZoom/$tx/$ty"
-                        val cachedBmp = tileBitmaps[tileKey]
+            for (tx in minTileX..maxTileX) {
+                for (ty in minTileY..maxTileY) {
+                    val tileKey = "${mapStyle.key}_${intZoom}_${tx}_$ty"
+                    val cachedBmp = tileBitmaps[tileKey]
 
-                        val tileNWLat = tile2lat(ty, intZoom)
-                        val tileNWLng = tile2lon(tx, intZoom)
-                        val tilePos = worldMercatorToScreen(
-                            latLngToWorldMercator(tileNWLat, tileNWLng, zoomLevel),
-                            centerWorld,
-                            width,
-                            height
-                        )
+                    val tileNWLat = tile2lat(ty, intZoom)
+                    val tileNWLng = tile2lon(tx, intZoom)
+                    val tilePos = worldMercatorToScreen(
+                        latLngToWorldMercator(tileNWLat, tileNWLng, zoomLevel),
+                        centerWorld,
+                        width,
+                        height
+                    )
 
-                        if (cachedBmp != null) {
-                            try {
-                                drawImage(
-                                    image = cachedBmp.asImageBitmap(),
-                                    dstOffset = androidx.compose.ui.unit.IntOffset(tilePos.x.toInt(), tilePos.y.toInt()),
-                                    dstSize = androidx.compose.ui.unit.IntSize(tileSize.toInt() + 1, tileSize.toInt() + 1)
-                                )
-                            } catch (_: Exception) {}
-                        } else {
-                            val tileCacheDir = File(context.cacheDir, "osm_tiles")
-                            if (!tileCacheDir.exists()) tileCacheDir.mkdirs()
-                            val tileFile = File(tileCacheDir, "${intZoom}_${tx}_$ty.png")
+                    if (cachedBmp != null) {
+                        try {
+                            drawImage(
+                                image = cachedBmp.asImageBitmap(),
+                                dstOffset = androidx.compose.ui.unit.IntOffset(tilePos.x.toInt(), tilePos.y.toInt()),
+                                dstSize = androidx.compose.ui.unit.IntSize(tileSize.toInt() + 1, tileSize.toInt() + 1)
+                            )
+                        } catch (_: Exception) {}
+                    } else {
+                        val tileCacheDir = File(context.cacheDir, "tiles_${mapStyle.key.lowercase()}")
+                        if (!tileCacheDir.exists()) tileCacheDir.mkdirs()
+                        val tileFile = File(tileCacheDir, "${intZoom}_${tx}_$ty.png")
 
-                            coroutineScope.launch(Dispatchers.IO) {
-                                val bmp = loadOrDownloadTile(tileFile, intZoom, tx, ty)
-                                if (bmp != null) {
-                                    withContext(Dispatchers.Main) {
-                                        tileBitmaps[tileKey] = bmp
-                                    }
+                        coroutineScope.launch(Dispatchers.IO) {
+                            val bmp = loadOrDownloadTile(tileFile, mapStyle, intZoom, tx, ty)
+                            if (bmp != null) {
+                                withContext(Dispatchers.Main) {
+                                    tileBitmaps[tileKey] = bmp
                                 }
                             }
                         }
                     }
                 }
-
-                // Semi-transparent overlay to keep trail polyline readable
-                val overlayColor = when (mapStyle) {
-                    MapLayerStyle.TOPO -> Color(0x35002414)
-                    MapLayerStyle.SATELLITE -> Color(0x50000000)
-                    else -> Color(0x25000000)
-                }
-                drawRect(color = overlayColor)
             }
 
-            // 1. Draw Reference Trail Path (Cyan/Dashed Guide Line)
+            // Contrast enhancement overlay to keep route polyline bright
+            val overlayColor = when (mapStyle) {
+                MapLayerStyle.TOPO -> Color(0x25002010)
+                MapLayerStyle.SATELLITE -> Color(0x35000000)
+                MapLayerStyle.TERRAIN -> Color(0x20151000)
+                MapLayerStyle.DARK_TACTICAL -> Color(0x30000000)
+                MapLayerStyle.NEON_TRAIL -> Color(0x18001525)
+                MapLayerStyle.STREET -> Color(0x20000000)
+                MapLayerStyle.NATGEO -> Color(0x15001000)
+                MapLayerStyle.CYCLOSM -> Color(0x15001500)
+                MapLayerStyle.WINTER_ALPINE -> Color(0x12000515)
+                MapLayerStyle.USGS_SHADED -> Color(0x18101510)
+            }
+            drawRect(color = overlayColor)
+
+            // 1. Draw Reference Guide Trail Path (Cyan/Dashed)
             if (referencePoints.size >= 2) {
                 val refPath = Path()
                 var first = true
@@ -359,10 +452,9 @@ fun ArolockMapWidget(
                         refPath.lineTo(scrPt.x, scrPt.y)
                     }
                 }
-                // Guide Trail Path
                 drawPath(
                     path = refPath,
-                    color = Color(0xFF00B4D8).copy(alpha = 0.75f),
+                    color = Color(0xFF00B4D8).copy(alpha = 0.8f),
                     style = Stroke(
                         width = 4.5f,
                         cap = StrokeCap.Round,
@@ -372,7 +464,7 @@ fun ArolockMapWidget(
                 )
             }
 
-            // 2. Draw Recorded Trail Route Polyline (Vibrant Gradient)
+            // 2. Draw Recorded Route Polyline (Vibrant glowing trail)
             if (points.size >= 2) {
                 val routePath = Path()
                 var first = true
@@ -390,7 +482,11 @@ fun ArolockMapWidget(
                 }
 
                 // Route Outer Glow
-                val glowColor = if (mapStyle == MapLayerStyle.NIGHT) AmberGold.copy(alpha = 0.5f) else AmberGold.copy(alpha = 0.35f)
+                val glowColor = when (mapStyle) {
+                    MapLayerStyle.NEON_TRAIL -> Color(0xFF00F5D4).copy(alpha = 0.5f)
+                    MapLayerStyle.DARK_TACTICAL -> AmberGold.copy(alpha = 0.5f)
+                    else -> AmberGold.copy(alpha = 0.35f)
+                }
                 drawPath(
                     path = routePath,
                     color = glowColor,
@@ -402,9 +498,14 @@ fun ArolockMapWidget(
                 )
 
                 // Route Main Polyline
-                val routeBrush = Brush.linearGradient(
-                    colors = listOf(ForestGreen, AmberGold, Terracotta)
-                )
+                val routeBrush = when (mapStyle) {
+                    MapLayerStyle.NEON_TRAIL -> Brush.linearGradient(
+                        colors = listOf(Color(0xFF00F5D4), Color(0xFF7B2CBF), Color(0xFFFF007F))
+                    )
+                    else -> Brush.linearGradient(
+                        colors = listOf(ForestGreen, AmberGold, Terracotta)
+                    )
+                }
                 drawPath(
                     path = routePath,
                     brush = routeBrush,
@@ -419,144 +520,110 @@ fun ArolockMapWidget(
             // 3. Draw Start & End Markers
             val trackPoints = if (points.isNotEmpty()) points else referencePoints
             if (trackPoints.isNotEmpty()) {
-                val start = trackPoints.first()
-                val startScreen = worldMercatorToScreen(
-                    latLngToWorldMercator(start.latitude, start.longitude, zoomLevel),
-                    centerWorld, width, height
-                )
-                drawCircle(color = NightBlack, radius = 9f, center = startScreen)
-                drawCircle(color = SageGreen, radius = 7f, center = startScreen)
-                drawCircle(color = Color.White, radius = 2.5f, center = startScreen)
+                val startP = trackPoints.first()
+                val startScr = worldMercatorToScreen(latLngToWorldMercator(startP.latitude, startP.longitude, zoomLevel), centerWorld, width, height)
+                drawCircle(color = Color.White, radius = 9f, center = startScr)
+                drawCircle(color = ForestGreen, radius = 7f, center = startScr)
+
+                if (trackPoints.size >= 2) {
+                    val endP = trackPoints.last()
+                    val endScr = worldMercatorToScreen(latLngToWorldMercator(endP.latitude, endP.longitude, zoomLevel), centerWorld, width, height)
+                    drawCircle(color = Color.White, radius = 9f, center = endScr)
+                    drawCircle(color = DangerRed, radius = 7f, center = endScr)
+                }
             }
 
-            if (trackPoints.size > 1 && currentLocation == null) {
-                val end = trackPoints.last()
-                val endScreen = worldMercatorToScreen(
-                    latLngToWorldMercator(end.latitude, end.longitude, zoomLevel),
-                    centerWorld, width, height
-                )
-                drawCircle(color = NightBlack, radius = 9f, center = endScreen)
-                drawCircle(color = DangerRed, radius = 7f, center = endScreen)
-                drawCircle(color = Color.White, radius = 2.5f, center = endScreen)
-            }
-
-            // 4. Draw Waypoint Markers
+            // 4. Draw Waypoints Pins
             for (wp in waypoints) {
-                val wpScreen = worldMercatorToScreen(
-                    latLngToWorldMercator(wp.latitude, wp.longitude, zoomLevel),
-                    centerWorld, width, height
-                )
-                val wpColor = when (wp.type) {
-                    WaypointType.SUMMIT -> Color(0xFF9D4EDD)
-                    WaypointType.WATER_SOURCE -> Color(0xFF00B4D8)
+                val wpScr = worldMercatorToScreen(latLngToWorldMercator(wp.latitude, wp.longitude, zoomLevel), centerWorld, width, height)
+                val pinColor = when (wp.type) {
+                    WaypointType.SUMMIT -> AmberGold
+                    WaypointType.WATER_SOURCE -> Color(0xFF48CAE4)
                     WaypointType.CAMPSITE -> SageGreen
-                    WaypointType.VIEWPOINT -> AmberGold
+                    WaypointType.VIEWPOINT -> Color(0xFFFFB703)
+                    WaypointType.PHOTO_POINT -> Color(0xFFFF007F)
                     WaypointType.HAZARD -> DangerRed
+                    WaypointType.REST_STOP -> Color(0xFF90E0EF)
                     WaypointType.TRAILHEAD -> ForestGreen
-                    WaypointType.REST_STOP -> Color(0xFF48CAE4)
-                    WaypointType.PHOTO_POINT -> Color(0xFFF77F00)
+                    else -> AmberGold
                 }
 
-                // Outer pin base
-                drawCircle(color = NightBlack, radius = 11f, center = wpScreen)
-                drawCircle(color = wpColor, radius = 8.5f, center = wpScreen)
-                drawCircle(color = Color.White, radius = 3.5f, center = wpScreen)
+                drawCircle(color = Color.Black.copy(alpha = 0.4f), radius = 13f, center = Offset(wpScr.x, wpScr.y + 2f))
+                drawCircle(color = Color.White, radius = 11f, center = wpScr)
+                drawCircle(color = pinColor, radius = 9f, center = wpScr)
+                drawCircle(color = Color.White, radius = 3.5f, center = wpScr)
             }
 
-            // 5. Draw Live User Location Pin & Accuracy Pulse
-            if (currentLocation != null) {
-                val userScreen = worldMercatorToScreen(
-                    latLngToWorldMercator(currentLocation.latitude, currentLocation.longitude, zoomLevel),
-                    centerWorld, width, height
-                )
+            // 5. Draw Live User Location Dot with Pulsing Radar
+            currentLocation?.let { loc ->
+                val userScr = worldMercatorToScreen(latLngToWorldMercator(loc.latitude, loc.longitude, zoomLevel), centerWorld, width, height)
 
-                // Pulse Wave
+                // Outer animated radar pulse
                 drawCircle(
-                    color = AmberGold.copy(alpha = pulseAlpha),
+                    color = SageGreen.copy(alpha = pulseAlpha),
                     radius = pulseRadius,
-                    center = userScreen
+                    center = userScr
                 )
-
                 // Accuracy circle
-                if (currentLocation.accuracy > 0f) {
-                    val accRadiusPx = (currentLocation.accuracy * 2.0.pow(zoomLevel.toDouble()) / 156543.03392).toFloat()
+                if (loc.accuracy > 0f) {
+                    val accuracyMeters = loc.accuracy.toDouble()
+                    val scale = 256.0 * 2.0.pow(zoomLevel.toDouble())
+                    val metersPerPixel = (156543.03392 * cos(loc.latitude * PI / 180.0)) / (2.0.pow(zoomLevel.toDouble()))
+                    val radiusPx = (accuracyMeters / metersPerPixel).toFloat().coerceIn(12f, 140f)
+
                     drawCircle(
-                        color = AmberGold.copy(alpha = 0.15f),
-                        radius = accRadiusPx.coerceIn(14f, 110f),
-                        center = userScreen
+                        color = SageGreen.copy(alpha = 0.12f),
+                        radius = radiusPx,
+                        center = userScr
+                    )
+                    drawCircle(
+                        color = SageGreen.copy(alpha = 0.35f),
+                        radius = radiusPx,
+                        center = userScr,
+                        style = Stroke(width = 1.2f)
                     )
                 }
 
-                // Inner Solid Marker Pin
-                drawCircle(color = NightBlack, radius = 10f, center = userScreen)
-                drawCircle(color = AmberGold, radius = 7f, center = userScreen)
-                drawCircle(color = Color.White, radius = 3f, center = userScreen)
+                // Core GPS Location Dot
+                drawCircle(color = Color.White, radius = 9f, center = userScr)
+                drawCircle(color = SageGreen, radius = 7f, center = userScr)
+                drawCircle(color = Color.White, radius = 2.5f, center = userScr)
             }
         }
 
-        // Selected Waypoint Callout Tooltip
-        selectedWaypoint?.let { wp ->
-            Surface(
-                color = NightCard.copy(alpha = 0.95f),
-                shape = RoundedCornerShape(12.dp),
-                shadowElevation = 8.dp,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 16.dp, start = 24.dp, end = 24.dp)
-                    .clickable { selectedWaypoint = null }
+        // Top Left: Map Style & Compass Badge
+        Surface(
+            color = NightCard.copy(alpha = 0.9f),
+            shape = RoundedCornerShape(12.dp),
+            shadowElevation = 4.dp,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(12.dp)
+                .clickable(enabled = showControls) { showStyleChooserDialog = true }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    Text(text = wp.type.iconSymbol, fontSize = 20.sp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = wp.title,
-                            color = TextPrimaryDark,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${wp.type.label} • ${wp.altitude.toInt()}m${if (wp.note.isNotEmpty()) " • " + wp.note else ""}",
-                            color = TextSecondaryDark,
-                            fontSize = 11.sp
-                        )
-                    }
+                Text(text = mapStyle.iconEmoji, fontSize = 14.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Column {
+                    Text(
+                        text = mapStyle.label,
+                        color = TextPrimaryDark,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Zoom: ${String.format("%.1f", zoomLevel)}x",
+                        color = TextSecondaryDark,
+                        fontSize = 9.sp
+                    )
                 }
             }
         }
 
-        // Attribution & Current Layer Badge
-        Surface(
-            color = NightCard.copy(alpha = 0.82f),
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(10.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Terrain,
-                    contentDescription = null,
-                    tint = SageGreen,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "${mapStyle.label} • OSM",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-
-        // Map Control Floating Buttons (Recenter, Layer Switcher, Zoom +/-)
+        // Map Control Floating Buttons (Layers, Recenter, Zoom +/-)
         if (showControls && isInteractive) {
             Column(
                 modifier = Modifier
@@ -566,9 +633,9 @@ fun ArolockMapWidget(
             ) {
                 // Layer Switcher Button
                 IconButton(
-                    onClick = { showLayerMenu = !showLayerMenu },
+                    onClick = { showStyleChooserDialog = true },
                     colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = NightCard.copy(alpha = 0.9f),
+                        containerColor = NightCard.copy(alpha = 0.92f),
                         contentColor = SageGreen
                     ),
                     modifier = Modifier
@@ -578,7 +645,7 @@ fun ArolockMapWidget(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Layers,
-                        contentDescription = "Change Map Layer",
+                        contentDescription = "Map Styles",
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -599,7 +666,7 @@ fun ArolockMapWidget(
                         }
                     },
                     colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = if (followUser) AmberGold else NightCard.copy(alpha = 0.9f),
+                        containerColor = if (followUser) AmberGold else NightCard.copy(alpha = 0.92f),
                         contentColor = if (followUser) NightBlack else Color.White
                     ),
                     modifier = Modifier
@@ -618,7 +685,7 @@ fun ArolockMapWidget(
                 IconButton(
                     onClick = { zoomLevel = (zoomLevel + 1.0f).coerceAtMost(18.5f) },
                     colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = NightCard.copy(alpha = 0.9f),
+                        containerColor = NightCard.copy(alpha = 0.92f),
                         contentColor = Color.White
                     ),
                     modifier = Modifier
@@ -637,7 +704,7 @@ fun ArolockMapWidget(
                 IconButton(
                     onClick = { zoomLevel = (zoomLevel - 1.0f).coerceAtLeast(3.0f) },
                     colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = NightCard.copy(alpha = 0.9f),
+                        containerColor = NightCard.copy(alpha = 0.92f),
                         contentColor = Color.White
                     ),
                     modifier = Modifier
@@ -652,60 +719,121 @@ fun ArolockMapWidget(
                     )
                 }
             }
+        }
 
-            // Layer Selection Dropdown / Overlay
-            AnimatedVisibility(
-                visible = showLayerMenu,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 64.dp)
-            ) {
-                Surface(
-                    color = NightCard.copy(alpha = 0.95f),
-                    shape = RoundedCornerShape(14.dp),
-                    shadowElevation = 8.dp,
-                    modifier = Modifier.width(170.dp)
-                ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        Text(
-                            text = "MAP STYLES",
-                            color = TextSecondaryDark,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+        // Full Interactive Map Style Chooser Dialog
+        if (showStyleChooserDialog) {
+            AlertDialog(
+                onDismissRequest = { showStyleChooserDialog = false },
+                title = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Choose Map Style",
+                                color = TextPrimaryDark,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Select terrain layer & satellite view",
+                                color = TextSecondaryDark,
+                                fontSize = 11.sp
+                            )
+                        }
+                        IconButton(
+                            onClick = { showStyleChooserDialog = false },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryDark)
+                        }
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 440.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         MapLayerStyle.values().forEach { style ->
                             val isSelected = style == mapStyle
-                            Row(
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) SageGreen.copy(alpha = 0.18f) else NightSurface
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isSelected) SageGreen else NightCardBorder
+                                ),
+                                shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) SageGreen.copy(alpha = 0.2f) else Color.Transparent)
+                                    .fillMaxWidth()
                                     .clickable {
                                         mapStyle = style
-                                        showLayerMenu = false
+                                        onMapStyleChanged?.invoke(style)
+                                        showStyleChooserDialog = false
+                                        Toast.makeText(context, "${style.label} activated", Toast.LENGTH_SHORT).show()
                                     }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = style.label,
-                                        color = if (isSelected) SageGreen else TextPrimaryDark,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = style.subtitle,
-                                        color = TextSecondaryDark,
-                                        fontSize = 10.sp
-                                    )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) SageGreen else NightCard,
+                                        modifier = Modifier.size(38.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(text = style.iconEmoji, fontSize = 18.sp)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = style.label,
+                                            color = if (isSelected) SageGreen else TextPrimaryDark,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = style.subtitle,
+                                            color = TextSecondaryDark,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = SageGreen,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showStyleChooserDialog = false }) {
+                        Text("Dismiss", color = TextSecondaryDark)
+                    }
+                },
+                containerColor = NightBlack,
+                shape = RoundedCornerShape(18.dp)
+            )
         }
     }
 }
@@ -759,10 +887,16 @@ private fun DrawScope.drawTopoContourGrid(
 ) {
     val gridSpacing = 42f
     val lineColor = when (style) {
-        MapLayerStyle.TOPO -> Color(0x2052B788)
-        MapLayerStyle.NIGHT -> Color(0x18FFB703)
-        MapLayerStyle.SATELLITE -> Color(0x18778DA9)
-        MapLayerStyle.STREET -> Color(0x153A86FF)
+        MapLayerStyle.TOPO -> Color(0x2252B788)
+        MapLayerStyle.SATELLITE -> Color(0x1648CAE4)
+        MapLayerStyle.TERRAIN -> Color(0x20DDA15E)
+        MapLayerStyle.DARK_TACTICAL -> Color(0x12FFFFFF)
+        MapLayerStyle.NEON_TRAIL -> Color(0x2400F5D4)
+        MapLayerStyle.STREET -> Color(0x163A86FF)
+        MapLayerStyle.NATGEO -> Color(0x2052B788)
+        MapLayerStyle.CYCLOSM -> Color(0x2238B000)
+        MapLayerStyle.WINTER_ALPINE -> Color(0x1CB0D0D3)
+        MapLayerStyle.USGS_SHADED -> Color(0x22A3B18A)
     }
 
     var x = 0f
@@ -786,8 +920,8 @@ private fun DrawScope.drawTopoContourGrid(
         y += gridSpacing
     }
 
-    // Organic wavy contour simulation lines
-    val contourColor = lineColor.copy(alpha = lineColor.alpha * 1.5f)
+    // Topographic contour simulation lines
+    val contourColor = lineColor.copy(alpha = lineColor.alpha * 1.6f)
     for (i in 1..4) {
         val path = Path()
         val baseY = height * (i / 5f)
@@ -806,13 +940,25 @@ private fun DrawScope.drawTopoContourGrid(
     }
 }
 
-private fun loadOrDownloadTile(file: File, z: Int, x: Int, y: Int): Bitmap? {
+private fun loadOrDownloadTile(file: File, style: MapLayerStyle, z: Int, x: Int, y: Int): Bitmap? {
     if (file.exists() && file.length() > 0) {
         return BitmapFactory.decodeFile(file.absolutePath)
     }
 
     return try {
-        val url = "https://tile.openstreetmap.org/$z/$x/$y.png"
+        val url = when (style) {
+            MapLayerStyle.TOPO -> "https://tile.opentopomap.org/$z/$x/$y.png"
+            MapLayerStyle.SATELLITE -> "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
+            MapLayerStyle.TERRAIN -> "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/$z/$y/$x"
+            MapLayerStyle.DARK_TACTICAL -> "https://a.basemaps.cartocdn.com/dark_all/$z/$x/$y.png"
+            MapLayerStyle.NEON_TRAIL -> "https://a.basemaps.cartocdn.com/rastertiles/voyager_labels_under/$z/$x/$y.png"
+            MapLayerStyle.STREET -> "https://tile.openstreetmap.org/$z/$x/$y.png"
+            MapLayerStyle.NATGEO -> "https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/$z/$y/$x"
+            MapLayerStyle.CYCLOSM -> "https://a.tile-cyclosm.openstreetmap.fr/cyclosm/$z/$x/$y.png"
+            MapLayerStyle.WINTER_ALPINE -> "https://a.basemaps.cartocdn.com/light_all/$z/$x/$y.png"
+            MapLayerStyle.USGS_SHADED -> "https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/$z/$y/$x"
+        }
+
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "ArolockTrekkingApp/1.0 (Android; Universal-Device)")

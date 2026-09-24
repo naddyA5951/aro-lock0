@@ -244,6 +244,10 @@ fun RecordingScreen(
             isInteractive = true,
             showControls = true,
             autoCenterOnUser = true,
+            initialStyle = com.example.ui.components.MapLayerStyle.fromKey(userProfile.preferredMapStyle),
+            onMapStyleChanged = { style ->
+                viewModel.setPreferredMapStyle(style.key)
+            },
             modifier = Modifier.fillMaxSize()
         )
 

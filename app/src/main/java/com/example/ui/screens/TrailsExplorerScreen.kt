@@ -298,7 +298,9 @@ fun TrailsExplorerScreen(
                             referencePoints = trail.points,
                             waypoints = trail.waypoints,
                             isInteractive = true,
-                            showControls = true
+                            showControls = true,
+                            initialStyle = com.example.ui.components.MapLayerStyle.fromKey(userProfile.preferredMapStyle),
+                            onMapStyleChanged = { viewModel.setPreferredMapStyle(it.key) }
                         )
                     }
                 }

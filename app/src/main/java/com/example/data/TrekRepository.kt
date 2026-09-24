@@ -57,6 +57,18 @@ class TrekRepository(
     fun loginWithEmail(displayName: String, email: String) =
         userPreferences.loginWithEmail(displayName, email)
 
+    fun registerAccount(name: String, email: String, password: String): Boolean =
+        userPreferences.registerAccount(name, email, password)
+
+    fun loginWithPassword(email: String, password: String): Pair<Boolean, String> =
+        userPreferences.loginWithPassword(email, password)
+
+    fun verifyEmailAndLogin(displayName: String, email: String, authProvider: String = "Email") =
+        userPreferences.verifyEmailAndLogin(displayName, email, authProvider)
+
+    fun setPreferredMapStyle(styleKey: String) =
+        userPreferences.setPreferredMapStyle(styleKey)
+
     fun logout() = userPreferences.logout()
 
     fun setUnitSystem(useMetric: Boolean) = userPreferences.setUnitSystem(useMetric)

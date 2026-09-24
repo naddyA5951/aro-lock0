@@ -186,6 +186,22 @@ class TrekViewModel(
         repository.loginWithEmail(displayName, email)
     }
 
+    fun registerAccount(name: String, email: String, password: String): Boolean {
+        return repository.registerAccount(name, email, password)
+    }
+
+    fun loginWithPassword(email: String, password: String): Pair<Boolean, String> {
+        return repository.loginWithPassword(email, password)
+    }
+
+    fun verifyEmailAndLogin(displayName: String, email: String, authProvider: String = "Email") {
+        repository.verifyEmailAndLogin(displayName, email, authProvider)
+    }
+
+    fun setPreferredMapStyle(styleKey: String) {
+        repository.setPreferredMapStyle(styleKey)
+    }
+
     fun logout() {
         repository.logout()
     }
