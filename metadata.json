@@ -1,0 +1,6 @@
+{
+  "name": "Arolock",
+  "description": "Modern offline-first trekking and hiking application with GPS route recording, live elevation gain, statistics, maps, and media attachments.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
