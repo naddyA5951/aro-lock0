@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Timeline
@@ -177,6 +178,24 @@ fun TrekCard(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
+                }
+
+                if (trek.steps > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.DirectionsWalk,
+                            contentDescription = null,
+                            tint = SageGreen,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = UnitFormatter.formatSteps(trek.steps),
+                            color = TextPrimaryDark,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
                 Icon(

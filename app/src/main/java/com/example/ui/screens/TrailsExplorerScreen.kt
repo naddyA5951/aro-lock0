@@ -77,7 +77,7 @@ import com.example.viewmodel.TrekViewModel
 @Composable
 fun TrailsExplorerScreen(
     viewModel: TrekViewModel,
-    onStartTrailTrek: (Trail, Boolean) -> Unit, // trail, isSimulation
+    onStartTrailTrek: (Trail) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -203,9 +203,7 @@ fun TrailsExplorerScreen(
             TrailCatalogCard(
                 trail = trail,
                 useMetric = userProfile.useMetric,
-                onInspect = { inspectingTrail = trail },
-                onStartLiveTrek = { onStartTrailTrek(trail, false) },
-                onStartSimTrek = { onStartTrailTrek(trail, true) }
+                onInspect = { inspectingTrail = trail }
             )
         }
     }
@@ -353,40 +351,21 @@ fun TrailsExplorerScreen(
                             .padding(vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Start Real GPS Trek
                         Button(
                             onClick = {
                                 inspectingTrail = null
-                                onStartTrailTrek(trail, false)
+                                onStartTrailTrek(trail)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = SageGreen),
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp)
+                                .fillMaxWidth()
+                                .height(52.dp)
                                 .testTag("start_real_trail_button")
                         ) {
                             Icon(imageVector = Icons.Default.DirectionsWalk, contentDescription = null, tint = NightBlack)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Record Trek", color = NightBlack, fontWeight = FontWeight.Bold)
-                        }
-
-                        // Simulation Demo Walk (works everywhere on every device)
-                        OutlinedButton(
-                            onClick = {
-                                inspectingTrail = null
-                                onStartTrailTrek(trail, true)
-                            },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberGold),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp)
-                                .testTag("start_sim_trail_button")
-                        ) {
-                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, tint = AmberGold)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Simulate Walk", color = AmberGold, fontWeight = FontWeight.Bold)
+                            Text("START GUIDED TREK", color = NightBlack, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
                         }
                     }
                 }
@@ -400,8 +379,6 @@ fun TrailCatalogCard(
     trail: Trail,
     useMetric: Boolean,
     onInspect: () -> Unit,
-    onStartLiveTrek: () -> Unit,
-    onStartSimTrek: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val diffColor = when (trail.difficulty.lowercase()) {

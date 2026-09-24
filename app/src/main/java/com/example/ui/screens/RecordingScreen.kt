@@ -26,15 +26,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddLocation
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terrain
-import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,7 +46,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -98,7 +99,7 @@ fun RecordingScreen(
     var showElevationSheet by remember { mutableStateOf(false) }
     var showAddWaypointDialog by remember { mutableStateOf(false) }
 
-    // Location Permission Check
+    // Check location and activity recognition permissions
     var hasLocationPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -115,7 +116,28 @@ fun RecordingScreen(
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
         hasLocationPermission = fineGranted || coarseGranted
         if (hasLocationPermission && !recordingState.isRecording) {
-            viewModel.startTrek(context, isSimulation = false)
+            viewModel.startTrek(context)
+        }
+    }
+
+    fun requestAllTrekPermissionsAndStart() {
+        val permissionsToRequest = buildList {
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                add(Manifest.permission.ACTIVITY_RECOGNITION)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        val allGranted = permissionsToRequest.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (allGranted) {
+            viewModel.startTrek(context)
+        } else {
+            permissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
     }
 
@@ -164,7 +186,7 @@ fun RecordingScreen(
                     )
                 }
 
-                // Live status badge
+                // Live status badge with GPS precision & sensors
                 Surface(
                     color = NightCard.copy(alpha = 0.92f),
                     shape = RoundedCornerShape(20.dp),
@@ -180,7 +202,6 @@ fun RecordingScreen(
                             tint = when {
                                 !recordingState.isRecording -> TextSecondaryDark
                                 recordingState.isPaused -> AmberGold
-                                recordingState.isSimulating -> Color(0xFF00B4D8)
                                 else -> DangerRed
                             },
                             modifier = Modifier.size(12.dp)
@@ -190,7 +211,7 @@ fun RecordingScreen(
                             text = when {
                                 !recordingState.isRecording -> "READY TO TREK"
                                 recordingState.isPaused -> "PAUSED"
-                                recordingState.isSimulating -> "DEMO WALK SIMULATION"
+                                recordingState.gpsAccuracyMeters > 0f -> "LIVE GPS (±${recordingState.gpsAccuracyMeters.toInt()}m)"
                                 else -> "RECORDING LIVE GPS"
                             },
                             color = TextPrimaryDark,
@@ -330,7 +351,103 @@ fun RecordingScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Secondary Metrics Grid: Elevation Gain, Speed, Waypoints, Calories
+                // Secondary Metrics Grid Row 1: Real Steps, Live Speed, Pace
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Physical Steps Counter
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DirectionsWalk,
+                                contentDescription = null,
+                                tint = SageGreen,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("STEPS", color = TextSecondaryDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            text = UnitFormatter.formatSteps(recordingState.stepCount),
+                            color = TextPrimaryDark,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (recordingState.cadenceSpm > 0) {
+                            Text(
+                                text = "${recordingState.cadenceSpm} spm",
+                                color = SageGreen,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    // Real Current Speed
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Speed,
+                                contentDescription = null,
+                                tint = Color(0xFF48CAE4),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("SPEED", color = TextSecondaryDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            text = UnitFormatter.formatSpeed(recordingState.currentSpeedMps, userProfile.useMetric),
+                            color = TextPrimaryDark,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Current Pace
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = AmberGold,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("PACE", color = TextSecondaryDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            text = UnitFormatter.formatPace(recordingState.currentSpeedMps, userProfile.useMetric),
+                            color = TextPrimaryDark,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Estimated Calories
+                    Column(horizontalAlignment = Alignment.End) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.LocalFireDepartment,
+                                contentDescription = null,
+                                tint = Terracotta,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("CALORIES", color = TextSecondaryDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            text = "${recordingState.estimatedCalories} kcal",
+                            color = TextPrimaryDark,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Secondary Metrics Grid Row 2: Elevation Gain, Altitude, Waypoints
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -355,20 +472,20 @@ fun RecordingScreen(
                         )
                     }
 
-                    // Current Speed
+                    // Current Altitude
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.Speed,
+                                imageVector = Icons.Default.Compress,
                                 contentDescription = null,
-                                tint = Color(0xFF48CAE4),
+                                tint = Color(0xFF90E0EF),
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("SPEED", color = TextSecondaryDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("ALTITUDE", color = TextSecondaryDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                         Text(
-                            text = UnitFormatter.formatSpeed(recordingState.currentSpeedMps, userProfile.useMetric),
+                            text = UnitFormatter.formatElevationAltitude(recordingState.currentAltitude, userProfile.useMetric),
                             color = TextPrimaryDark,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
@@ -395,20 +512,20 @@ fun RecordingScreen(
                         )
                     }
 
-                    // Estimated Calories
+                    // GPS Sensor Fix
                     Column(horizontalAlignment = Alignment.End) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.LocalFireDepartment,
+                                imageVector = Icons.Default.GpsFixed,
                                 contentDescription = null,
-                                tint = AmberGold,
+                                tint = if (recordingState.points.isNotEmpty()) SageGreen else AmberGold,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("CALORIES", color = TextSecondaryDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("GPS FIX", color = TextSecondaryDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                         Text(
-                            text = "${recordingState.estimatedCalories} kcal",
+                            text = if (recordingState.points.isNotEmpty()) "${recordingState.points.size} pts" else "Acquiring",
                             color = TextPrimaryDark,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
@@ -420,60 +537,24 @@ fun RecordingScreen(
 
                 // Action Controls Row
                 if (!recordingState.isRecording) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Button(
+                        onClick = { requestAllTrekPermissionsAndStart() },
+                        colors = ButtonDefaults.buttonColors(containerColor = SageGreen),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .testTag("recording_start_button")
                     ) {
-                        // Start Real GPS Trek
-                        Button(
-                            onClick = {
-                                if (hasLocationPermission) {
-                                    viewModel.startTrek(context, isSimulation = false)
-                                } else {
-                                    val permissions = mutableListOf(
-                                        Manifest.permission.ACCESS_FINE_LOCATION,
-                                        Manifest.permission.ACCESS_COARSE_LOCATION
-                                    )
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                        permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-                                    }
-                                    permissionLauncher.launch(permissions.toTypedArray())
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = SageGreen),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .weight(1.3f)
-                                .height(54.dp)
-                                .testTag("recording_start_button")
-                        ) {
-                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, tint = NightBlack)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "RECORD GPS",
-                                color = NightBlack,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 1.sp
-                            )
-                        }
-
-                        // Demo Walk Simulation (works everywhere on every device, including browser emulator)
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.startTrek(context, isSimulation = true)
-                            },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberGold),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(54.dp)
-                                .testTag("start_demo_walk_button")
-                        ) {
-                            Icon(imageVector = Icons.Default.DirectionsWalk, contentDescription = null, tint = AmberGold)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("DEMO WALK", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
+                        Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, tint = NightBlack)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "START RECORDING TREK",
+                            color = NightBlack,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.sp
+                        )
                     }
                 } else {
                     // Active recording controls: Pause/Resume + Finish + Add Waypoint
@@ -523,13 +604,9 @@ fun RecordingScreen(
                                 .height(52.dp)
                                 .testTag("recording_finish_button")
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Stop,
-                                contentDescription = "Finish",
-                                tint = Color.White
-                            )
+                            Icon(imageVector = Icons.Default.Stop, contentDescription = "Finish Trek", tint = Color.White)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("FINISH", color = Color.White, fontWeight = FontWeight.ExtraBold)
+                            Text("FINISH", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -537,129 +614,14 @@ fun RecordingScreen(
         }
     }
 
-    // Add Waypoint Dialog
-    if (showAddWaypointDialog) {
-        var wpTitle by remember { mutableStateOf("") }
-        var wpNote by remember { mutableStateOf("") }
-        var selectedType by remember { mutableStateOf(WaypointType.VIEWPOINT) }
-
-        val types = listOf(
-            WaypointType.VIEWPOINT,
-            WaypointType.SUMMIT,
-            WaypointType.WATER_SOURCE,
-            WaypointType.CAMPSITE,
-            WaypointType.REST_STOP,
-            WaypointType.HAZARD
-        )
-
-        AlertDialog(
-            onDismissRequest = { showAddWaypointDialog = false },
-            title = {
-                Text("Drop Waypoint on Trail", color = TextPrimaryDark, fontWeight = FontWeight.Bold)
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "Mark an important summit, spring, camp, or viewpoint along your route.",
-                        color = TextSecondaryDark,
-                        fontSize = 12.sp
-                    )
-
-                    OutlinedTextField(
-                        value = wpTitle,
-                        onValueChange = { wpTitle = it },
-                        placeholder = { Text("e.g. Glacier Viewpoint / Spring") },
-                        label = { Text("Waypoint Name") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = SageGreen,
-                            focusedTextColor = TextPrimaryDark,
-                            unfocusedTextColor = TextPrimaryDark
-                        ),
-                        modifier = Modifier.fillMaxWidth().testTag("waypoint_name_input")
-                    )
-
-                    Text("Waypoint Category:", color = TextSecondaryDark, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(types) { type ->
-                            val isSel = type == selectedType
-                            FilterChip(
-                                selected = isSel,
-                                onClick = { selectedType = type },
-                                label = { Text("${type.iconSymbol} ${type.label}", fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = SageGreen,
-                                    selectedLabelColor = NightBlack,
-                                    containerColor = NightBlack,
-                                    labelColor = TextSecondaryDark
-                                )
-                            )
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = wpNote,
-                        onValueChange = { wpNote = it },
-                        placeholder = { Text("Optional note or safety warning") },
-                        label = { Text("Notes") },
-                        maxLines = 2,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = SageGreen,
-                            focusedTextColor = TextPrimaryDark,
-                            unfocusedTextColor = TextPrimaryDark
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val currentLoc = recordingState.lastKnownLocation
-                        val lat = currentLoc?.latitude ?: 45.9237
-                        val lng = currentLoc?.longitude ?: 6.8694
-                        val alt = currentLoc?.altitude ?: recordingState.currentAltitude
-                        val waypoint = TrekWaypoint(
-                            title = wpTitle.ifEmpty { selectedType.label },
-                            type = selectedType,
-                            latitude = lat,
-                            longitude = lng,
-                            altitude = alt,
-                            note = wpNote
-                        )
-                        viewModel.addWaypointToActiveTrek(context, waypoint)
-                        showAddWaypointDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SageGreen),
-                    modifier = Modifier.testTag("save_waypoint_button")
-                ) {
-                    Text("Drop Pin", color = NightBlack, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddWaypointDialog = false }) {
-                    Text("Cancel", color = TextSecondaryDark)
-                }
-            },
-            containerColor = NightCard
-        )
-    }
-
-    // Finish Trek Confirmation Dialog
+    // Confirmation Dialog to Finish Trek
     if (showFinishDialog) {
         AlertDialog(
             onDismissRequest = { showFinishDialog = false },
-            title = {
-                Text(
-                    text = "Finish This Trek?",
-                    color = TextPrimaryDark,
-                    fontWeight = FontWeight.Bold
-                )
-            },
+            title = { Text("Complete Expedition?", color = TextPrimaryDark, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    text = "You covered ${UnitFormatter.formatDistance(recordingState.currentDistanceMeters, userProfile.useMetric)} in ${UnitFormatter.formatDuration(recordingState.elapsedTimeSeconds)}. Ending now will save your route and statistics.",
+                    text = "Are you sure you want to finish this trek? Your route, elevation stats, distance, and waypoints will be saved.",
                     color = TextSecondaryDark
                 )
             },
@@ -670,15 +632,112 @@ fun RecordingScreen(
                         viewModel.finishTrek(context)
                         onFinishTrek()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = SageGreen),
-                    modifier = Modifier.testTag("confirm_finish_button")
+                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreen)
                 ) {
-                    Text("Finish & Save", color = NightBlack, fontWeight = FontWeight.Bold)
+                    Text("Save & Finish", color = TextPrimaryDark, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showFinishDialog = false }) {
-                    Text("Keep Trekking", color = TextSecondaryDark)
+                    Text("Keep Trekking", color = AmberGold)
+                }
+            },
+            containerColor = NightCard
+        )
+    }
+
+    // Dialog for adding a custom waypoint at user's current location
+    if (showAddWaypointDialog) {
+        var wpTitle by remember { mutableStateOf("") }
+        var wpNote by remember { mutableStateOf("") }
+        var wpType by remember { mutableStateOf(WaypointType.VIEWPOINT) }
+
+        AlertDialog(
+            onDismissRequest = { showAddWaypointDialog = false },
+            title = { Text("Mark Trail Waypoint", color = TextPrimaryDark, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Pin an observation, water source, campsite or hazard at your exact GPS coordinates.",
+                        color = TextSecondaryDark,
+                        fontSize = 12.sp
+                    )
+
+                    OutlinedTextField(
+                        value = wpTitle,
+                        onValueChange = { wpTitle = it },
+                        label = { Text("Waypoint Name") },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SageGreen,
+                            unfocusedBorderColor = TextSecondaryDark,
+                            focusedTextColor = TextPrimaryDark,
+                            unfocusedTextColor = TextPrimaryDark
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = wpNote,
+                        onValueChange = { wpNote = it },
+                        label = { Text("Field Notes (Optional)") },
+                        singleLine = false,
+                        maxLines = 2,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SageGreen,
+                            unfocusedBorderColor = TextSecondaryDark,
+                            focusedTextColor = TextPrimaryDark,
+                            unfocusedTextColor = TextPrimaryDark
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text("Waypoint Type:", color = TextPrimaryDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(WaypointType.values().toList()) { type ->
+                            FilterChip(
+                                selected = wpType == type,
+                                onClick = { wpType = type },
+                                label = { Text(type.name, fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = SageGreen,
+                                    selectedLabelColor = NightBlack,
+                                    containerColor = NightBlack,
+                                    labelColor = TextSecondaryDark
+                                )
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val currentLoc = recordingState.lastKnownLocation
+                        val lat = currentLoc?.latitude ?: 0.0
+                        val lng = currentLoc?.longitude ?: 0.0
+                        val alt = currentLoc?.altitude ?: recordingState.currentAltitude
+
+                        val newWaypoint = TrekWaypoint(
+                            title = wpTitle.ifEmpty { "Waypoint #${recordingState.waypoints.size + 1}" },
+                            type = wpType,
+                            latitude = lat,
+                            longitude = lng,
+                            altitude = alt,
+                            note = wpNote
+                        )
+                        viewModel.addWaypointToActiveTrek(context, newWaypoint)
+                        showAddWaypointDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AmberGold)
+                ) {
+                    Text("Drop Waypoint", color = NightBlack, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddWaypointDialog = false }) {
+                    Text("Cancel", color = TextSecondaryDark)
                 }
             },
             containerColor = NightCard

@@ -400,9 +400,10 @@ fun TrekDetailsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     TrekStatCard(
-                        title = "Max Altitude",
-                        value = UnitFormatter.formatElevationAltitude(trek.maxAltitude, userProfile.useMetric),
-                        icon = Icons.Default.Terrain,
+                        title = "Total Steps",
+                        value = UnitFormatter.formatSteps(trek.steps),
+                        unit = "steps",
+                        icon = Icons.Default.DirectionsWalk,
                         iconTint = AmberGold,
                         modifier = Modifier.weight(1f)
                     )
@@ -412,6 +413,26 @@ fun TrekDetailsScreen(
                         unit = "kcal",
                         icon = Icons.Default.LocalFireDepartment,
                         iconTint = DangerRed,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TrekStatCard(
+                        title = "Max Altitude",
+                        value = UnitFormatter.formatElevationAltitude(trek.maxAltitude, userProfile.useMetric),
+                        icon = Icons.Default.Terrain,
+                        iconTint = SageGreen,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TrekStatCard(
+                        title = "Min Altitude",
+                        value = UnitFormatter.formatElevationAltitude(trek.minAltitude, userProfile.useMetric),
+                        icon = Icons.Default.Terrain,
+                        iconTint = Terracotta,
                         modifier = Modifier.weight(1f)
                     )
                 }

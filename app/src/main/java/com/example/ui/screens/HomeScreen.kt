@@ -172,16 +172,16 @@ fun HomeScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = if (recordingState.isPaused) "TREK PAUSED" else if (recordingState.isSimulating) "DEMO WALK RECORDING" else "LIVE GPS RECORDING",
+                                        text = if (recordingState.isPaused) "TREK PAUSED" else "LIVE GPS & STEP TRACKING",
                                         color = if (recordingState.isPaused) AmberGold else SageGreen,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 1.sp
                                     )
                                     Text(
-                                        text = "${UnitFormatter.formatDistance(recordingState.currentDistanceMeters, userProfile.useMetric)} • ${UnitFormatter.formatDuration(recordingState.elapsedTimeSeconds)}",
+                                        text = "${UnitFormatter.formatDistance(recordingState.currentDistanceMeters, userProfile.useMetric)} • ${UnitFormatter.formatSteps(recordingState.stepCount)} steps • ${UnitFormatter.formatDuration(recordingState.elapsedTimeSeconds)}",
                                         color = TextPrimaryDark,
-                                        fontSize = 16.sp,
+                                        fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -372,9 +372,9 @@ fun HomeScreen(
                             modifier = Modifier.weight(1f)
                         )
                         TrekStatCard(
-                            title = "Treks",
-                            value = statistics.totalTreks.toString(),
-                            unit = "hikes",
+                            title = "Steps",
+                            value = UnitFormatter.formatSteps(statistics.totalSteps),
+                            unit = "steps",
                             icon = Icons.Default.DirectionsWalk,
                             iconTint = AmberGold,
                             modifier = Modifier.weight(1f)
@@ -395,11 +395,11 @@ fun HomeScreen(
                             modifier = Modifier.weight(1f)
                         )
                         TrekStatCard(
-                            title = "Est. Burn",
-                            value = statistics.totalCalories.toString(),
-                            unit = "kcal",
-                            icon = Icons.Default.LocalFireDepartment,
-                            iconTint = DangerRed,
+                            title = "Treks",
+                            value = statistics.totalTreks.toString(),
+                            unit = "hikes",
+                            icon = Icons.Default.Explore,
+                            iconTint = Color(0xFF48CAE4),
                             modifier = Modifier.weight(1f)
                         )
                     }

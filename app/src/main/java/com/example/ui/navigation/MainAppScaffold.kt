@@ -246,9 +246,9 @@ fun MainAppScaffold(
                 Screen.TRAILS_EXPLORER -> {
                     TrailsExplorerScreen(
                         viewModel = viewModel,
-                        onStartTrailTrek = { trail, isSimulation ->
+                        onStartTrailTrek = { trail ->
                             viewModel.selectCatalogTrail(trail)
-                            viewModel.startTrek(context, isSimulation = isSimulation, trail = trail)
+                            viewModel.startTrek(context, trail = trail)
                             currentScreen = Screen.RECORDING
                         }
                     )

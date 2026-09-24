@@ -18,10 +18,15 @@ data class RecordingState(
     val elevationLossMeters: Double = 0.0,
     val minAltitude: Double = 0.0,
     val maxAltitude: Double = 0.0,
+    val stepCount: Int = 0,
+    val cadenceSpm: Int = 0,
     val estimatedCalories: Int = 0,
     val elapsedTimeSeconds: Long = 0,
     val startTimeMillis: Long = 0L,
     val currentTrekId: Long? = null,
     val lastKnownLocation: GpsPoint? = null,
+    val gpsAccuracyMeters: Float = 0f,
+    val hasBarometer: Boolean = false,
+    val hasStepSensor: Boolean = false,
     val attachedMediaPaths: List<String> = emptyList()
 )

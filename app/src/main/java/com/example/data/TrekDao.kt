@@ -49,4 +49,7 @@ interface TrekDao {
 
     @Query("SELECT SUM(estimatedCalories) FROM treks")
     fun getTotalCaloriesFlow(): Flow<Int?>
+
+    @Query("SELECT SUM(steps) FROM treks")
+    fun getTotalStepsFlow(): Flow<Int?>
 }

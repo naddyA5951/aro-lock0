@@ -20,6 +20,7 @@ data class Trek(
     val currentAltitude: Double = 0.0,
     val avgSpeedMps: Double = 0.0,
     val maxSpeedMps: Double = 0.0,
+    val steps: Int = 0,
     val estimatedCalories: Int = 0,
     val difficulty: String = "Moderate", // Easy, Moderate, Hard, Extreme
     val pointsJson: String = "[]",      // Serialized List<GpsPoint>
@@ -33,5 +34,6 @@ data class TrekStatistics(
     val totalDistanceMeters: Double = 0.0,
     val totalElevationGainMeters: Double = 0.0,
     val totalDurationSeconds: Long = 0,
-    val totalCalories: Int = 0
+    val totalCalories: Int = 0,
+    val totalSteps: Int = 0
 )

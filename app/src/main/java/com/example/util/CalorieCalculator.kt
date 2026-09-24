@@ -16,7 +16,8 @@ object CalorieCalculator {
         durationSeconds: Long,
         distanceMeters: Double,
         elevationGainMeters: Double,
-        weightKg: Float = 70f
+        weightKg: Float = 70f,
+        stepCount: Int = 0
     ): Int {
         if (durationSeconds <= 0 || weightKg <= 0f) return 0
 
@@ -29,10 +30,10 @@ object CalorieCalculator {
 
         // Base MET based on speed
         var met = when {
-            avgSpeedKmh < 2.5 -> 3.5
-            avgSpeedKmh < 4.0 -> 5.0
-            avgSpeedKmh < 5.5 -> 6.5
-            avgSpeedKmh < 7.0 -> 7.8
+            avgSpeedKmh < 2.0 -> 3.0
+            avgSpeedKmh < 4.0 -> 4.5
+            avgSpeedKmh < 5.5 -> 6.0
+            avgSpeedKmh < 7.0 -> 7.5
             else -> 9.0
         }
 
@@ -43,7 +44,14 @@ object CalorieCalculator {
             met += climbingBonus.coerceIn(0.0, 4.0)
         }
 
-        val totalKcal = (met * 3.5 * weightKg / 200.0) * durationMinutes
+        var totalKcal = (met * 3.5 * weightKg / 200.0) * durationMinutes
+
+        // If step count is available, ensure minimum realistic burn (~0.04 kcal per step for 70kg hiker)
+        if (stepCount > 0) {
+            val stepBasedKcal = stepCount * 0.045 * (weightKg / 70.0)
+            totalKcal = max(totalKcal, stepBasedKcal)
+        }
+
         return max(0, totalKcal.toInt())
     }
 }

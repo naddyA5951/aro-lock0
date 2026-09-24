@@ -68,6 +68,24 @@ object UnitFormatter {
         }
     }
 
+    fun formatPace(metersPerSec: Float, useMetric: Boolean = true): String {
+        if (metersPerSec <= 0.25f) return "--:--"
+        val secondsPerMeter = 1.0 / metersPerSec
+        val secondsPerUnit = secondsPerMeter * (if (useMetric) 1000.0 else 1609.34)
+        val mins = (secondsPerUnit / 60).toInt()
+        val secs = (secondsPerUnit % 60).toInt()
+        val unit = if (useMetric) "/km" else "/mi"
+        return String.format(Locale.getDefault(), "%d:%02d %s", mins, secs, unit)
+    }
+
+    fun formatSteps(steps: Int): String {
+        return if (steps >= 10000) {
+            String.format(Locale.getDefault(), "%,d", steps)
+        } else {
+            steps.toString()
+        }
+    }
+
     fun formatDate(timestampMillis: Long): String {
         val sdf = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
         return sdf.format(Date(timestampMillis))

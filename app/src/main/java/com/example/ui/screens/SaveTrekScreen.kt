@@ -194,11 +194,11 @@ fun SaveTrekScreen(
                         modifier = Modifier.weight(1f)
                     )
                     TrekStatCard(
-                        title = "Est. Calories",
-                        value = trek.estimatedCalories.toString(),
-                        unit = "kcal",
-                        icon = Icons.Default.LocalFireDepartment,
-                        iconTint = DangerRed,
+                        title = "Total Steps",
+                        value = UnitFormatter.formatSteps(trek.steps),
+                        unit = "steps",
+                        icon = Icons.Default.DirectionsWalk,
+                        iconTint = SageGreen,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -210,15 +210,16 @@ fun SaveTrekScreen(
                     TrekStatCard(
                         title = "Avg Speed",
                         value = UnitFormatter.formatSpeed(trek.avgSpeedMps.toFloat(), userProfile.useMetric),
-                        icon = Icons.Default.DirectionsWalk,
-                        iconTint = SageGreen,
+                        icon = Icons.Default.Speed,
+                        iconTint = Color(0xFF48CAE4),
                         modifier = Modifier.weight(1f)
                     )
                     TrekStatCard(
-                        title = "Max Speed",
-                        value = UnitFormatter.formatSpeed(trek.maxSpeedMps.toFloat(), userProfile.useMetric),
-                        icon = Icons.Default.Speed,
-                        iconTint = AmberGold,
+                        title = "Est. Calories",
+                        value = trek.estimatedCalories.toString(),
+                        unit = "kcal",
+                        icon = Icons.Default.LocalFireDepartment,
+                        iconTint = DangerRed,
                         modifier = Modifier.weight(1f)
                     )
                 }

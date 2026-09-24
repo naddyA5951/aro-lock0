@@ -20,15 +20,20 @@ class TrekRepository(
         trekDao.getTreksCountFlow(),
         trekDao.getTotalDistanceFlow(),
         trekDao.getTotalElevationGainFlow(),
-        trekDao.getTotalDurationFlow(),
-        trekDao.getTotalCaloriesFlow()
-    ) { count, distance, elevation, duration, calories ->
+        combine(
+            trekDao.getTotalDurationFlow(),
+            trekDao.getTotalCaloriesFlow(),
+            trekDao.getTotalStepsFlow()
+        ) { duration, calories, steps -> Triple(duration, calories, steps) }
+    ) { count, distance, elevation, subStats ->
+        val (duration, calories, steps) = subStats
         TrekStatistics(
             totalTreks = count,
             totalDistanceMeters = distance ?: 0.0,
             totalElevationGainMeters = elevation ?: 0.0,
             totalDurationSeconds = duration ?: 0L,
-            totalCalories = calories ?: 0
+            totalCalories = calories ?: 0,
+            totalSteps = steps ?: 0
         )
     }
 

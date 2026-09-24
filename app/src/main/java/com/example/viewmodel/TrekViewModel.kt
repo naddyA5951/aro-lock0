@@ -57,13 +57,11 @@ class TrekViewModel(
 
     fun startTrek(
         context: Context,
-        isSimulation: Boolean = false,
         trail: Trail? = null
     ) {
         val targetTrail = trail ?: _selectedCatalogTrail.value
         TrekTrackingService.startService(
             context = context,
-            isSimulation = isSimulation,
             trailId = targetTrail?.id,
             trailName = targetTrail?.name,
             trailPoints = targetTrail?.points ?: emptyList()
@@ -92,7 +90,7 @@ class TrekViewModel(
 
         val trekToSave = Trek(
             name = defaultName,
-            description = if (state.isSimulating) "Simulated mountain trail walk on ${state.activeTrailName ?: "Alpine Trail"}" else "",
+            description = "",
             startTimeMillis = state.startTimeMillis,
             endTimeMillis = System.currentTimeMillis(),
             durationSeconds = state.elapsedTimeSeconds,
@@ -104,6 +102,7 @@ class TrekViewModel(
             currentAltitude = state.currentAltitude,
             avgSpeedMps = state.avgSpeedMps.toDouble(),
             maxSpeedMps = state.maxSpeedMps.toDouble(),
+            steps = state.stepCount,
             estimatedCalories = state.estimatedCalories,
             difficulty = "Moderate",
             pointsJson = GpsPointJsonHelper.pointsToJson(state.points),
